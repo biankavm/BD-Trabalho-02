@@ -36,7 +36,7 @@ void le_arquivo(string nome_arquivo) {
         istringstream iss(linha);
 
         string ID_str, titulo, autores, atualizacao, snippet, ano_str, citacoes_str;
-        int ano, citacoes;
+        int id, ano, citacoes;
 
         getline(iss, ID_str, ';');
         getline(iss, titulo, ';');
@@ -56,11 +56,12 @@ void le_arquivo(string nome_arquivo) {
         tira_aspas(snippet);
 
         // convertendo os necessários para int
+        id = stoi(ID_str);
         ano = stoi(ano_str);
         citacoes = stoi(citacoes_str);
 
         // imprimindo (aqui teremos que salvar em registro)
-        cout << "\nID: " << ID_str << endl;
+        cout << "\nID: " << id << endl;
         cout << "\nTítulo: " << titulo << endl;
         cout << "\nAno: " << ano << endl;
         cout << "\nAutores: " << autores << endl;
