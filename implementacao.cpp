@@ -4,17 +4,34 @@
 #include <string>
 #include <sstream>
 #include <limits>
+//#include "C:/Program Files/Boost/boost_1_84_0/boost/filesystem.hpp"
+
+#include <boost/filesystem.hpp> // requer instalação da bib
 using namespace std;
 
 typedef struct Registro {
-    char ID[1024];
-    char titulo[300];
+    int ID;
+    string titulo;
     int ano;
-    char autores[150];
+    string autores;
     int citacoes;
-    char atualizacao[20];
-    char snippet[1024];
+    string atualizacao;
+    string snippet;
 } Registro;
+
+Registro criaRegistro(int id, string titulo, int ano, string autores, int citacoes,
+                        string atualizacao, string snippet){
+    Registro R;
+    R.ID = id;
+    R.titulo = titulo;
+    R.ano = ano;
+    R.autores = autores;
+    R.citacoes = citacoes;
+    R.atualizacao = atualizacao;
+    R.snippet = snippet;
+
+    return R;
+}
 
 void tira_aspas(string& sou_uma_string){
     if (sou_uma_string.front() == '"' && sou_uma_string.back() == '"') {
@@ -23,9 +40,13 @@ void tira_aspas(string& sou_uma_string){
     }
 }
 
+void monta_arquivo_de_dados(Registro R, string nome_arquivo_saida){
+    ofstream outputFile(nome_arquivo_saida, ios::binary); // arquivo de saída
+    outputFile.write(reinterpret_cast<char *>(&R), sizeof(R)); // escrever no arquivo de saída
+}
 
-void le_arquivo(string nome_arquivo) {
-    ifstream arquivo(nome_arquivo);
+void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida) {
+    ifstream arquivo(nome_arquivo_entrada);
     if (!arquivo.is_open()) {
         cout << "Erro ao abrir arquivo!!!" << endl;
         return;
@@ -61,6 +82,8 @@ void le_arquivo(string nome_arquivo) {
         citacoes = stoi(citacoes_str);
 
         // imprimindo (aqui teremos que salvar em registro)
+        Registro r = criaRegistro(id, titulo, ano, autores, citacoes, atualizacao, snippet);
+        
         cout << "\nID: " << id << endl;
         cout << "\nTítulo: " << titulo << endl;
         cout << "\nAno: " << ano << endl;
@@ -68,13 +91,16 @@ void le_arquivo(string nome_arquivo) {
         cout << "\nCitacoes: " << citacoes << endl;
         cout << "\nAtualizacao: " << atualizacao << endl;
         cout << "\nSnippet: " << snippet << endl;
+
+        monta_arquivo_de_dados(r, nome_arquivo_saida);
 }
 
     arquivo.close();
 }
 
 int main() {
-    string nome_arquivo = "artinho.csv";
-    le_arquivo(nome_arquivo);
+    string nome_arquivo_entrada = "artinho.csv";
+    string nome_arquivo_saida = "saida dat";
+    le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_saida);
     return 0;
 }
