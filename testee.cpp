@@ -5,45 +5,54 @@
 #include <sstream>
 #include <limits>
 #include <unordered_map>
-//#include "C:/Program Files/Boost/boost_1_84_0/boost/filesystem.hpp"
+#include <cstring> // Para as funções de manipulação de strings C
+#include <vector>
+//#include "C:/Program Files/Boost/boost_1_84_0"
 
-#include <boost/filesystem.hpp>
+//#include <boost/filesystem.hpp>
 using namespace std;
 
 // declaração do registro
 typedef struct Registro {
     int ID;
-    string titulo;
+    char titulo[300];
     int ano;
-    string autores;
+    char autores[150];
     int citacoes;
-    string atualizacao;
-    string snippet;
+    char atualizacao[20];
+    char snippet[1024];
 } Registro;
 
 
 unordered_map<int, Registro> MeuMapa; // declaração do Hash (a chave é o ID do registro)
 
 // função que cria um registro (construtor)
-Registro criaRegistro(int id, string titulo, int ano, string autores, int citacoes,
-                        string atualizacao, string snippet){
+Registro criaRegistro(int id, const char titulo[], int ano, const char autores[], int citacoes,
+                      const char atualizacao[], const char snippet[]){
     Registro R;
     R.ID = id;
-    R.titulo = titulo;
+    strncpy(R.titulo, titulo, sizeof(R.titulo));
+    R.titulo[sizeof(R.titulo) - 1] = '\0';
     R.ano = ano;
-    R.autores = autores;
+    strncpy(R.autores, autores, sizeof(R.autores));
+    R.autores[sizeof(R.autores) - 1] = '\0';
     R.citacoes = citacoes;
-    R.atualizacao = atualizacao;
-    R.snippet = snippet;
-
+    strncpy(R.atualizacao, atualizacao, sizeof(R.atualizacao));
+    R.atualizacao[sizeof(R.atualizacao) - 1] = '\0';
+    strncpy(R.snippet, snippet, sizeof(R.snippet));
+    R.snippet[sizeof(R.snippet) - 1] = '\0';
     return R;
 }
 
+
 // (obsoleto) parse para tirar as aspas do arquivo de dados
-void tira_aspas(string& sou_uma_string){
-    if (sou_uma_string.front() == '"' && sou_uma_string.back() == '"') {
-        sou_uma_string.erase(0, 1); // Remove a primeira aspa
-        sou_uma_string.pop_back();  // Remove a última aspa
+void tira_aspas(char sou_uma_string[]) {
+    int len = strlen(sou_uma_string);
+    if (len >= 2 && sou_uma_string[0] == '"' && sou_uma_string[len - 1] == '"') {
+        sou_uma_string[len - 1] = '\0'; // Substitui a última aspa por terminador nulo
+        for (int i = 0; i < len - 1; ++i) {
+            sou_uma_string[i] = sou_uma_string[i + 1]; // Move os caracteres para a esquerda
+        }
     }
 }
 
@@ -63,23 +72,24 @@ Registro parse(string linha, ifstream& arquivo) {
     if (linha_size < 6) {
         return r;
     } 
-
     for (int i = 1; i < linha_size - 2; i++) {
         // Checa os casos bases de divisão de campos por ' "; '
         if ((linha[i] == '"') && (linha[i+1] == ';')) {
-
             // Trata campos vazios
             if (linha[i+2] == ';') {
+
                 string novo_campo(campo_atual.begin(), campo_atual.end());
                 campos_completos.push_back(novo_campo);
                 campos_completos.push_back(" ");
                 campo_atual.clear();
+
                 i++;
                 count++;
             }
 
             // Caso comum
             else {
+
                 string novo_campo(campo_atual.begin(), campo_atual.end());
                 campos_completos.push_back(novo_campo);
                 campo_atual.clear();
@@ -90,12 +100,13 @@ Registro parse(string linha, ifstream& arquivo) {
             comeco_ultimo = i;
         }
 
-        // Trata o caso do último campo da linha
-        else if (i == linha_size - 3) {
+        // Trata o caso do último campo da  linha
+        else if (i == linha_size - 4) {
 
             if (linha[comeco_ultimo] != 'N') {
                 comeco_ultimo ++;
             }
+
             string prim_pedaco = linha.substr(comeco_ultimo, linha_size - comeco_ultimo);
             vector<char> pedaco;
 
@@ -146,16 +157,31 @@ Registro parse(string linha, ifstream& arquivo) {
     }
 
     // Cria e retorna um Registro com as informações destiladas
-    int id = stoi(campos_completos[0]);
+    /*int id = stoi(campos_completos[0]);
     string titulo = campos_completos[1];
     int ano = stoi(campos_completos[2]);
     string autores = campos_completos[3];
     int citacoes = stoi(campos_completos[4]);
     string atualizacao = campos_completos[5];
-    string snippet = campos_completos[6];
+    string snippet = campos_completos[6];*/
+    int id = stoi(campos_completos[0]);
+    char titulo[300];
+    strncpy(titulo, campos_completos[1].c_str(), sizeof(titulo));
+    titulo[sizeof(titulo) - 1] = '\0';
+    int ano = stoi(campos_completos[2]);
+    char autores[150];
+    strncpy(autores, campos_completos[3].c_str(), sizeof(autores));
+    autores[sizeof(autores) - 1] = '\0';
+    int citacoes = stoi(campos_completos[4]);
+    char atualizacao[20];
+    strncpy(atualizacao, campos_completos[5].c_str(), sizeof(atualizacao));
+    atualizacao[sizeof(atualizacao) - 1] = '\0';
+    char snippet[1024];
+    strncpy(snippet, campos_completos[6].c_str(), sizeof(snippet));
+    snippet[sizeof(snippet) - 1] = '\0';
 
     r = criaRegistro(id, titulo, ano, autores, citacoes, atualizacao, snippet);
-
+    //cout << r.ID << r.titulo << r.ano << r.autores << r.citacoes << r.atualizacao << r.snippet << endl;
     return r;
 
 }
@@ -183,8 +209,32 @@ int conta_linhas_arquivo(string nome_arquivo){
     return cont;
 }
 
+int acha_tamanho_dos_blocos(){
+    FILE* pipe = popen("sudo blockdev --getbsz /dev/sda", "r");    
+    if (!pipe){
+        cerr << "Erro ao executar o comando." << endl;
+        return -1;
+    } 
+
+    char buffer[128];
+    string result = "";
+
+    // ler a saída do comando linha por linha
+    while (!feof(pipe)) {
+        if (fgets(buffer, 128, pipe) != NULL)
+            result += buffer;
+    }
+
+    // Fecha o pipe
+    pclose(pipe);
+
+    // Converte a string resultante para um número inteiro e retorna
+    return stoi(result);
+}
+
 // leitura do arquivo csv
 void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
+    
     int cont = 0;
     ifstream arquivo;
     arquivo.open(nome_arquivo_entrada);
@@ -197,7 +247,7 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     string linha;
     int num_campos = 0;
     Registro r;
-
+    
     while (getline(arquivo, linha)) {
         cont++;
         r = parse(linha, arquivo);
@@ -211,8 +261,8 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
 int main() {
     string nome_arquivo_entrada = "artigo.csv";
     string nome_arquivo_saida = "saida dat";
-    
-    le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_saida);
+    cout << "Tamanho dos blocos: " << acha_tamanho_dos_blocos() << endl;
 
+    le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_saida);
     return 0;
 }
