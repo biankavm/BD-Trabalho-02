@@ -1,16 +1,17 @@
 #include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <string>
 #include <sstream>
-#include <limits>
-#include <unordered_map>
+#include <iostream>
+#include <iomanip>
+#include <string>
 #include <cstring> // Para as funções de manipulação de strings C
 #include <vector>
+#include <limits>
+#include <unordered_map>
 //#include "C:/Program Files/Boost/boost_1_84_0"
 
 //#include <boost/filesystem.hpp>
 using namespace std;
+ 
 
 // declaração do registro
 typedef struct Registro {
@@ -23,8 +24,8 @@ typedef struct Registro {
     char snippet[1024];
 } Registro;
 
-
-unordered_map<int, Registro> MeuMapa; // declaração do Hash (a chave é o ID do registro)
+// ======================================================================================================
+// Funções de gerenciamento de structs de dados
 
 // função que cria um registro (construtor)
 Registro criaRegistro(int id, const char titulo[], int ano, const char autores[], int citacoes,
@@ -45,16 +46,191 @@ Registro criaRegistro(int id, const char titulo[], int ano, const char autores[]
 }
 
 
-// (obsoleto) parse para tirar as aspas do arquivo de dados
-void tira_aspas(char sou_uma_string[]) {
-    int len = strlen(sou_uma_string);
-    if (len >= 2 && sou_uma_string[0] == '"' && sou_uma_string[len - 1] == '"') {
-        sou_uma_string[len - 1] = '\0'; // Substitui a última aspa por terminador nulo
-        for (int i = 0; i < len - 1; ++i) {
-            sou_uma_string[i] = sou_uma_string[i + 1]; // Move os caracteres para a esquerda
-        }
+// ======================================================================================================
+// Funções de acesso à memória secundária
+
+// Função para alocar a quantidade de bytes total para um arquivo
+// (necessária porque é possível que um bloco vazio seja lido, e não queremos acessar memória que não é nossa)
+int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_bloco) {
+    int num_blocos_por_iteracao = num_blocos;
+    int pos = 0;
+
+    if (num_blocos > 4096) {
+         num_blocos_por_iteracao = 1024;
     }
+
+
+    // Preenche o arquivo com 0s (NULL)
+    char *bloco = (char*) malloc(tam_bloco);
+    memset(bloco, 0, tam_bloco);
+    
+    printf("\tIterações: %d\n", num_blocos / num_blocos_por_iteracao);
+
+    for (int iteracao = 0; iteracao < num_blocos / num_blocos_por_iteracao; iteracao ++) {
+        printf("\tIteração [%d/%d]...\n", iteracao, num_blocos / num_blocos_por_iteracao);
+
+        ofstream arquivo(nome_arquivo_saida, ios::binary);
+        if (!arquivo.is_open()) {
+            cerr << "Erro ao abrir o arquivo: " << nome_arquivo_saida << endl;
+            return -1;
+        }
+
+        arquivo.seekp(pos, ios::beg);
+
+        for (int i = 0; i < num_blocos_por_iteracao; i++) {
+            arquivo.write(bloco, tam_bloco);
+        }
+
+        pos += num_blocos_por_iteracao * tam_bloco;
+        arquivo.close();
+    }
+
+    printf("\nMemória alocada em \"%s\", de tamanho %d bytes\n", nome_arquivo_saida.c_str(), tam_bloco * num_blocos);
+    return 0;
 }
+
+
+// Função para ler um bloco de um arquivo, dado o seu endereço
+char* ler_bloco_do_arquivo(double endereco_bloco, string nome_arquivo_saida, int tam_bloco, int num_blocos) {
+    ifstream arquivo(nome_arquivo_saida, ios::binary);
+    if (!arquivo.is_open()) {
+        cerr << "Erro ao abrir o arquivo: " << nome_arquivo_saida << endl;
+        return NULL;
+    }
+
+    char *bloco = (char*) malloc(tam_bloco);
+    
+    // Move o cursor para o endereço do bloco
+    arquivo.seekg(endereco_bloco);
+    arquivo.read(bloco, tam_bloco);
+    if (!arquivo) {
+        cerr << "Erro ao ler o arquivo: " << nome_arquivo_saida << endl;
+        return NULL;
+    }
+
+    arquivo.close();
+
+    return bloco;
+}
+
+
+// Função para ler um registro de um bloco, dado um id 
+// TO-DO
+/*
+Registro ler_registro_do_bloco(char* bloco, int id, int tam_bloco, int tam_reg) {
+    Registro r;
+    r.ID = -1;
+    vector<int> sizes = {sizeof(r.ID), sizeof(r.titulo), sizeof(r.ano), sizeof(r.autores), sizeof(r.citacoes), sizeof(r.atualizacao), sizeof(r.snippet)};
+    char id_str[sizeof(int)];
+    int pos = 0;
+    int id_atual = -1;
+
+    for (int reg = 0; reg < tam_bloco/tam_reg; reg++) {
+        memcpy(id_str, bloco + pos, sizeof(int));
+        id_atual = stoi(id_str);
+
+        if (id_atual == id) {
+            printf("Achou\n");
+            r.ID = id_atual;
+
+            memcpy(r.titulo, bloco + sizes[0], sizes[1]);
+
+            memcpy(id_str, bloco + sizes[1], sizes[2]);
+            r.ano = stoi(id_str);
+            
+            memcpy(r.autores, bloco + sizes[2], sizes[3]);
+
+            memcpy(id_str, bloco + sizes[3], sizes[4]);
+            r.citacoes = stoi(id_str);
+
+            memcpy(r.atualizacao, bloco + sizes[4], sizes[5]);
+            memcpy(r.snippet, bloco + sizes[5], sizes[6]);
+
+            
+            return r;
+        }
+        pos += tam_reg;
+    }
+
+    return r;
+}
+*/
+
+
+// TO-DO
+int escrever_bloco_no_arquivo() {
+    return 0;
+}
+
+
+// TO-DO
+int escrever_registro_no_bloco() {
+    return 0;
+}
+
+
+// Função para contar as linhas do arquivo para definirmos o tamanho do arquivo de dados
+int conta_linhas_arquivo(string nome_arquivo){
+    ifstream arquivo(nome_arquivo);
+    if (!arquivo.is_open()){
+        cerr << "Erro ao abrir o arquivo: " << nome_arquivo << endl;
+        return -1;
+    }
+    int cont = 0;
+    string linha;
+    while(getline(arquivo, linha)){
+
+        cont++;
+    }
+    arquivo.close();
+    return cont;
+}
+
+
+// Função que faz uma chamada de sistema para descobrir o tamanho do bloco de dados no dispositivo
+int acha_tamanho_dos_blocos(){
+    FILE* pipe = popen("sudo blockdev --getbsz /dev/sda", "r");    
+    if (!pipe){
+        cerr << "Erro ao executar o comando." << endl;
+        return -1;
+    } 
+
+    char buffer[128];
+    string result = "";
+
+    // ler a saída do comando linha por linha
+    while (!feof(pipe)) {
+        if (fgets(buffer, 128, pipe) != NULL)
+            result += buffer;
+    }
+
+    // Fecha o pipe
+    pclose(pipe);
+
+    // Converte a string resultante para um número inteiro e retorna
+    return stoi(result);
+}
+
+
+// Função que calcula o tamanho do registro do arquivo de dados em bytes
+int tam_registro_hash() {
+    return sizeof(Registro);
+}
+
+
+// Função que calcula a quantidade de blocos necessários para um dado arquivo com um dado tamanho de registro
+int num_blocos(int tam_bloco, int tam_reg, int num_artigos) {
+    int num_regs_bloco = tam_bloco / tam_reg;
+    int num_blocos_art = (num_artigos / num_regs_bloco) + 1;
+    
+    return num_blocos_art;
+}
+
+
+
+
+// ======================================================================================================
+// Funções de parsing do arquivo de entrada
 
 // Função que faz a separação de uma linha do arquivo em campos de um Registro
 Registro parse(string linha, ifstream& arquivo) {
@@ -111,7 +287,11 @@ Registro parse(string linha, ifstream& arquivo) {
             vector<char> pedaco;
 
             // Caso o artigo esteja quebrado em múltiplas linhas
-            if (!((linha[i] == '.') && (linha[i+1] == '.') && (linha[i+2] == '"')) && (!((linha[i] == 'U') && (linha[i+1] == 'L') && (linha[i+2] == 'L'))) && (linha[i+2] != '"')) {
+            int nao_eh_fim_do_snippet = !((linha[i] == '.') && (linha[i+1] == '.') && (linha[i+2] == '"'));
+            int nao_eh_snippet_null = !((linha[i] == 'U') && (linha[i+1] == 'L') && (linha[i+2] == 'L'));
+            int nao_eh_snippet_estranho = (linha[i+2] != '"');
+
+            if (nao_eh_fim_do_snippet && nao_eh_snippet_null && nao_eh_snippet_estranho) {
                 string nova_linha;
 
                 // Lê a próxima linha e a atribui como a nova linha do parsing
@@ -157,80 +337,18 @@ Registro parse(string linha, ifstream& arquivo) {
     }
 
     // Cria e retorna um Registro com as informações destiladas
-    /*int id = stoi(campos_completos[0]);
-    string titulo = campos_completos[1];
-    int ano = stoi(campos_completos[2]);
-    string autores = campos_completos[3];
-    int citacoes = stoi(campos_completos[4]);
-    string atualizacao = campos_completos[5];
-    string snippet = campos_completos[6];*/
-    int id = stoi(campos_completos[0]);
-    char titulo[300];
-    strncpy(titulo, campos_completos[1].c_str(), sizeof(titulo));
-    titulo[sizeof(titulo) - 1] = '\0';
-    int ano = stoi(campos_completos[2]);
-    char autores[150];
-    strncpy(autores, campos_completos[3].c_str(), sizeof(autores));
-    autores[sizeof(autores) - 1] = '\0';
-    int citacoes = stoi(campos_completos[4]);
-    char atualizacao[20];
-    strncpy(atualizacao, campos_completos[5].c_str(), sizeof(atualizacao));
-    atualizacao[sizeof(atualizacao) - 1] = '\0';
-    char snippet[1024];
-    strncpy(snippet, campos_completos[6].c_str(), sizeof(snippet));
-    snippet[sizeof(snippet) - 1] = '\0';
-
-    r = criaRegistro(id, titulo, ano, autores, citacoes, atualizacao, snippet);
-    //cout << r.ID << r.titulo << r.ano << r.autores << r.citacoes << r.atualizacao << r.snippet << endl;
+    r = criaRegistro(stoi(campos_completos[0].c_str()), 
+                    campos_completos[1].c_str(), 
+                    stoi(campos_completos[2]), 
+                    campos_completos[3].c_str(), 
+                    stoi(campos_completos[4]), 
+                    campos_completos[5].c_str(), 
+                    campos_completos[6].c_str());
     return r;
 
 }
 
-// transformar arquivo de dados em um .dat
-void monta_arquivo_de_dados(Registro R, string nome_arquivo_saida){
-    ofstream outputFile(nome_arquivo_saida, ios::binary); // arquivo de saída
-    outputFile.write(reinterpret_cast<char*>(&R), sizeof(R)); // escrever no arquivo de saída
-}
 
-// função para contar as linhas do arquivo para definirmos o tamanho do arquivo de dados
-int conta_linhas_arquivo(string nome_arquivo){
-    ifstream arquivo(nome_arquivo);
-    if (!arquivo.is_open()){
-        cerr << "Erro ao abrir o arquivo: " << nome_arquivo << endl;
-        return -1;
-    }
-    int cont = 0;
-    string linha;
-    while(getline(arquivo, linha)){
-
-        cont++;
-    }
-    arquivo.close();
-    return cont;
-}
-
-int acha_tamanho_dos_blocos(){
-    FILE* pipe = popen("sudo blockdev --getbsz /dev/sda", "r");    
-    if (!pipe){
-        cerr << "Erro ao executar o comando." << endl;
-        return -1;
-    } 
-
-    char buffer[128];
-    string result = "";
-
-    // ler a saída do comando linha por linha
-    while (!feof(pipe)) {
-        if (fgets(buffer, 128, pipe) != NULL)
-            result += buffer;
-    }
-
-    // Fecha o pipe
-    pclose(pipe);
-
-    // Converte a string resultante para um número inteiro e retorna
-    return stoi(result);
-}
 
 // leitura do arquivo csv
 void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
@@ -248,21 +366,57 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     int num_campos = 0;
     Registro r;
     
+    printf("Descobrindo tamanho do bloco de dados...\n");
+    int tam_bloco = acha_tamanho_dos_blocos();
+
+    printf("Descobrindo tamanhos dos registros...\n");
+    int tam_reg_hash = tam_registro_hash();
+    // TO-DO: descobrir registros dos índices
+
+    printf("Descobrindo o número de linhas do arquivo...\n");
+    int num_linhas = conta_linhas_arquivo(nome_arquivo_entrada);
+
+    printf("Descobrindo o número de blocos para armazenar o arquivo de dados...\n");
+    int num_blocos_hash = num_blocos(tam_bloco, tam_reg_hash, num_linhas);
+
+    printf("tamanho do bloco: %d\n", tam_bloco);
+    printf("tamanho do registro (hash): %d\n", tam_reg_hash);
+    printf("número de linhas: %d\n", num_linhas);
+    printf("numero de blocos (hash): %d\n\n", num_blocos_hash);
+
+    printf("Alocando %d bytes de memória para o arquivo...\n", num_blocos_hash * tam_bloco);
+    aloca_memoria_arquivo(nome_arquivo_saida, num_blocos_hash, tam_bloco);
+
+    // TO-DO: escrever um registro
+    
+    char* bloco_teste = ler_bloco_do_arquivo(tam_bloco * 3, nome_arquivo_saida, tam_bloco, num_blocos_hash);
+
+    printf("Bloco de endereço 3 * %d lido (tamanho: %d bytes):\n", tam_bloco, tam_bloco);
+    for (int i = 0; i < tam_bloco; i++) {
+        printf("%d", bloco_teste[i]);
+    }
+    printf("\n\n");
+
+    // TO-DO: ler um registro
+
+
+    printf("Parsing do arquivo de entrada:\n");
     while (getline(arquivo, linha)) {
         cont++;
         r = parse(linha, arquivo);
-        printf("id: %d\n", r.ID);
+        printf("id: %d\t", r.ID);
     }
-    printf("\nNúmero de linhas: %d\n", cont);
-
+    printf("\nNúmero de artigos: %d\n", cont);
+    
+    
     arquivo.close();
 }
 
 int main() {
-    string nome_arquivo_entrada = "artigo.csv";
+    string nome_arquivo_entrada = "artino.csv";
     string nome_arquivo_saida = "saida dat";
-    cout << "Tamanho dos blocos: " << acha_tamanho_dos_blocos() << endl;
 
     le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_saida);
+
     return 0;
 }
