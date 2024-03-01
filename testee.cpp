@@ -99,10 +99,8 @@ char* ler_bloco_do_arquivo(double endereco_bloco, string nome_arquivo_saida, int
 }
 
 
-// Função para ler um registro de um bloco, dado um id 
-// TO-DO
-/*
-Registro ler_registro_do_bloco(char* bloco, int id, int tam_bloco, int tam_reg) {
+// Função para ler um registro de um bloco de arquivo de dados, dado um id 
+Registro ler_registro_do_bloco_dados(char* bloco, int id, int tam_bloco, int tam_reg) {
     Registro r;
     r.ID = -1;
     vector<int> sizes = {sizeof(r.ID), sizeof(r.titulo), sizeof(r.ano), sizeof(r.autores), sizeof(r.citacoes), sizeof(r.atualizacao), sizeof(r.snippet)};
@@ -139,7 +137,7 @@ Registro ler_registro_do_bloco(char* bloco, int id, int tam_bloco, int tam_reg) 
 
     return r;
 }
-*/
+
 
 
 // TO-DO
@@ -149,7 +147,7 @@ int escrever_bloco_no_arquivo() {
 
 
 // TO-DO
-int escrever_registro_no_bloco() {
+int escrever_registro_no_bloco_dados() {
     return 0;
 }
 
@@ -217,8 +215,20 @@ int num_blocos(int tam_bloco, int tam_reg, int num_artigos) {
 // ======================================================================================================
 // Funções de parsing do arquivo de entrada
 
+// Função para ler uma linha do arquivo de entrada
+// Criada para ajudar a tornar o parser mais universal para versões de Linux diferentes
+string le_linha(FILE *arquivo) {
+    // Cria uma string do tamanho máximo de um registro 
+    char* linha = (char*) malloc(sizeof(Registro) + (7*3));
+
+    fscanf(arquivo, "%[^\r\n]%*[\r\n]", linha);
+    string line(linha);
+
+    return line;
+}
+
 // Função que faz a separação de uma linha do arquivo em campos de um Registro
-Registro parse(string linha, ifstream& arquivo) {
+Registro parse(string linha, FILE* arquivo) {
     int count = 0;
     int linha_size = linha.size();
     int comeco_ultimo = 0;
@@ -262,8 +272,7 @@ Registro parse(string linha, ifstream& arquivo) {
         }
 
         // Trata o caso do último campo da  linha
-        else if (i == linha_size - 3) {     // Trocar pra 3, caso a versão do Linux seja de 21 pra frente. Trocar pra 4 caso contrário
-
+        else if (i == linha_size - 3) {
             if (linha[comeco_ultimo] != 'N') {
                 comeco_ultimo ++;
             }
@@ -281,7 +290,8 @@ Registro parse(string linha, ifstream& arquivo) {
                 string nova_linha;
 
                 // Lê a próxima linha e a atribui como a nova linha do parsing
-                getline(arquivo, nova_linha);
+                //getline(arquivo, nova_linha);
+                nova_linha = le_linha(arquivo);
                 linha_size = nova_linha.size();
                 linha = nova_linha;
                 i = 0;
@@ -339,6 +349,7 @@ Registro parse(string linha, ifstream& arquivo) {
 
 }
 
+// Temporária, para facilitar testes com e sem alocação de dados
 void parte_de_dados(string nome_arquivo_entrada, string nome_arquivo_saida) {
     printf("Descobrindo tamanho do bloco de dados...\n");
     int tam_bloco = acha_tamanho_dos_blocos();
@@ -376,14 +387,14 @@ void parte_de_dados(string nome_arquivo_entrada, string nome_arquivo_saida) {
 
 }
 
+
+
 // leitura do arquivo csv
 void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     
     int cont = 0;
-    ifstream arquivo;
-    arquivo.open(nome_arquivo_entrada);
-
-    if (!arquivo.is_open()) {
+    FILE *arquivo = fopen(nome_arquivo_entrada.c_str(), "r");
+    if (!arquivo) {
         cout << "Erro ao abrir arquivo!!!" << endl;
         return;
     }
@@ -395,15 +406,16 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     parte_de_dados(nome_arquivo_entrada, nome_arquivo_saida);
 
     printf("Parsing do arquivo de entrada:\n");
-    while (getline(arquivo, linha)) {
+    linha = le_linha(arquivo);
+    while (linha.size() > 0) {
         cont++;
         r = parse(linha, arquivo);
         printf("id: %d\t", r.ID);
+        linha = le_linha(arquivo);
     }
     printf("\nNúmero de artigos: %d\n", cont);
     
-    
-    arquivo.close();
+    fclose(arquivo);
 }
 
 int main() {
