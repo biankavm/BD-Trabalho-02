@@ -52,40 +52,25 @@ Registro criaRegistro(int id, const char titulo[], int ano, const char autores[]
 // Função para alocar a quantidade de bytes total para um arquivo
 // (necessária porque é possível que um bloco vazio seja lido, e não queremos acessar memória que não é nossa)
 int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_bloco) {
-    int num_blocos_por_iteracao = num_blocos;
-    int pos = 0;
-
-    if (num_blocos > 4096) {
-         num_blocos_por_iteracao = 1024;
-    }
-
-
     // Preenche o arquivo com 0s (NULL)
     char *bloco = (char*) malloc(tam_bloco);
     memset(bloco, 0, tam_bloco);
-    
-    printf("\tIterações: %d\n", num_blocos / num_blocos_por_iteracao);
 
-    for (int iteracao = 0; iteracao < num_blocos / num_blocos_por_iteracao; iteracao ++) {
-        printf("\tIteração [%d/%d]...\n", iteracao, num_blocos / num_blocos_por_iteracao);
-
-        ofstream arquivo(nome_arquivo_saida, ios::binary);
-        if (!arquivo.is_open()) {
-            cerr << "Erro ao abrir o arquivo: " << nome_arquivo_saida << endl;
-            return -1;
-        }
-
-        arquivo.seekp(pos, ios::beg);
-
-        for (int i = 0; i < num_blocos_por_iteracao; i++) {
-            arquivo.write(bloco, tam_bloco);
-        }
-
-        pos += num_blocos_por_iteracao * tam_bloco;
-        arquivo.close();
+    FILE* pFile;
+    pFile = fopen(nome_arquivo_saida.c_str(), "wb");
+    if (!pFile) {
+        printf("Erro ao abrir arquivo para escrita.\n");
+        return 1;
     }
 
+    for (int j = 0; j < num_blocos; ++j){
+        printf("\tBloco %d/%d\n", j, num_blocos);
+        fwrite(bloco, 1, tam_bloco, pFile);
+    }
+
+    fclose(pFile);
     printf("\nMemória alocada em \"%s\", de tamanho %d bytes\n", nome_arquivo_saida.c_str(), tam_bloco * num_blocos);
+    
     return 0;
 }
 
@@ -277,7 +262,7 @@ Registro parse(string linha, ifstream& arquivo) {
         }
 
         // Trata o caso do último campo da  linha
-        else if (i == linha_size - 4) {
+        else if (i == linha_size - 3) {     // Trocar pra 3, caso a versão do Linux seja de 21 pra frente. Trocar pra 4 caso contrário
 
             if (linha[comeco_ultimo] != 'N') {
                 comeco_ultimo ++;
@@ -290,6 +275,7 @@ Registro parse(string linha, ifstream& arquivo) {
             int nao_eh_fim_do_snippet = !((linha[i] == '.') && (linha[i+1] == '.') && (linha[i+2] == '"'));
             int nao_eh_snippet_null = !((linha[i] == 'U') && (linha[i+1] == 'L') && (linha[i+2] == 'L'));
             int nao_eh_snippet_estranho = (linha[i+2] != '"');
+            //printf("%ld: %d %d %d - %c %c %c\n", linha.size(), nao_eh_fim_do_snippet, nao_eh_snippet_null, nao_eh_snippet_estranho, linha[i], linha[i+1], linha[i+2]);
 
             if (nao_eh_fim_do_snippet && nao_eh_snippet_null && nao_eh_snippet_estranho) {
                 string nova_linha;
@@ -332,7 +318,12 @@ Registro parse(string linha, ifstream& arquivo) {
     
     // Todo artigo deve ter 7 campos
     if (campos_completos.size() != 7) {
-        cout << "Erro no artigo." << endl;
+        if (campos_completos.size() > 0) {
+            cout << "Erro no artigo: ID " << campos_completos[0] << endl;
+        }
+        else {
+            cout << "Erro no artigo: vazio. " << endl;
+        }
         return r;
     }
 
@@ -348,24 +339,7 @@ Registro parse(string linha, ifstream& arquivo) {
 
 }
 
-
-
-// leitura do arquivo csv
-void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
-    
-    int cont = 0;
-    ifstream arquivo;
-    arquivo.open(nome_arquivo_entrada);
-
-    if (!arquivo.is_open()) {
-        cout << "Erro ao abrir arquivo!!!" << endl;
-        return;
-    }
-
-    string linha;
-    int num_campos = 0;
-    Registro r;
-    
+void parte_de_dados(string nome_arquivo_entrada, string nome_arquivo_saida) {
     printf("Descobrindo tamanho do bloco de dados...\n");
     int tam_bloco = acha_tamanho_dos_blocos();
 
@@ -385,6 +359,7 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     printf("numero de blocos (hash): %d\n\n", num_blocos_hash);
 
     printf("Alocando %d bytes de memória para o arquivo...\n", num_blocos_hash * tam_bloco);
+    //aloca_memoria_arquivo(nome_arquivo_saida, num_blocos_hash, tam_bloco);
     aloca_memoria_arquivo(nome_arquivo_saida, num_blocos_hash, tam_bloco);
 
     // TO-DO: escrever um registro
@@ -399,6 +374,25 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
 
     // TO-DO: ler um registro
 
+}
+
+// leitura do arquivo csv
+void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
+    
+    int cont = 0;
+    ifstream arquivo;
+    arquivo.open(nome_arquivo_entrada);
+
+    if (!arquivo.is_open()) {
+        cout << "Erro ao abrir arquivo!!!" << endl;
+        return;
+    }
+
+    string linha;
+    int num_campos = 0;
+    Registro r;
+    
+    parte_de_dados(nome_arquivo_entrada, nome_arquivo_saida);
 
     printf("Parsing do arquivo de entrada:\n");
     while (getline(arquivo, linha)) {
