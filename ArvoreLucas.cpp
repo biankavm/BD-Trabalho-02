@@ -337,7 +337,6 @@ void insercao(int chave, int enderecoRegistro, int tamBloco, string arquivo) {
 
         int *chaveTemp = criarVetorAleatorio(q); //
         int *endTemp = criarVetorAleatorio(q); //cria um vetor de 0s
-
         int a = 0;
         for(a = 0; a < j; a++) //preenche esses valores com a primeira metade dos antigos valores de n
         {
@@ -473,7 +472,6 @@ int main() {
     insercao(15, 4, tamBloco, arquivo_saida);
     insercao(25, 5, tamBloco, arquivo_saida);
 
-    // Outras operações de teste podem ser adicionadas aqui
 
     return 0;
 }
