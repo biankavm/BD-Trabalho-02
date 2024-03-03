@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -54,8 +55,9 @@ char* converter_int_para_chars(int x) {
     
     // Use bitwise operations to extract the bytes of the integer
     for (int i = 0; i < size_int; i++) {
-        as[i] = (x >> (8*(i))) & 0xFF;
+        as[i] = (x >> (8*i)) & 0xFF; //(8*(size_int-i-1))
     }
+    
     return as;
 }
 
@@ -65,10 +67,17 @@ int converter_chars_para_int(char* cs) {
     int num_char = sizeof(int);
 
     for (int i = 0; i < num_char; i++) {
-        retorno |= ((unsigned char)cs[i] << (8*i));
+        retorno |= ((unsigned char)cs[i] << (8*i)); //(num_char - i - 1)
     }
     
     return retorno;
+}
+
+
+void escreve_int_str(char* int_str, char* dest_str, int pos) {
+    for (int i = 0; i < sizeof(int); i++) {
+        dest_str[pos+i] = int_str[i];
+    }
 }
 
 
@@ -83,6 +92,7 @@ char* registro_to_char(Registro* r) {
     for (int i = 0; i < sizeof(int); i++) {
         reg_char[i] = id[i];
     }
+    free(id);
     campo += sizeof(int);
 
     // título
@@ -96,6 +106,7 @@ char* registro_to_char(Registro* r) {
     for (int i = 0; i < sizeof(int); i++) {
         reg_char[i+campo] = ano[i];
     }
+    free(ano);
     campo += sizeof(int);
 
     // autores
@@ -109,6 +120,7 @@ char* registro_to_char(Registro* r) {
     for (int i = 0; i < sizeof(int); i++) {
         reg_char[i+campo] = citacao[i];
     }
+    free(citacao);
     campo += sizeof(int);
 
     // atualização
@@ -138,8 +150,11 @@ char* registro_to_char(Registro* r) {
 // (necessária porque é possível que um bloco vazio seja lido, e não queremos acessar memória que não é nossa)
 int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_bloco) {
     // Preenche o arquivo com 0s (NULL)
-    char *bloco = (char*) malloc(tam_bloco);
-    memset(bloco, 0, tam_bloco);
+    int batch_size = 16;
+    int bytes = tam_bloco * batch_size;
+    int iteracoes = num_blocos/batch_size;
+    char *bloco = (char*) malloc(bytes);
+    memset(bloco, 0, bytes);
 
     FILE* pFile;
     pFile = fopen(nome_arquivo_saida.c_str(), "wb");
@@ -148,13 +163,13 @@ int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_blo
         return 1;
     }
 
-    for (int j = 0; j < num_blocos; ++j){
-        printf("\tBloco %d/%d\n", j, num_blocos);
-        fwrite(bloco, 1, tam_bloco, pFile);
+    for (int j = 0; j < iteracoes; j++){
+        printf("\tIteração %d/%d\n", j, iteracoes);
+        fwrite(bloco, 1, bytes, pFile);
     }
 
     fclose(pFile);
-    //free(bloco);
+    free(bloco);
     printf("\nMemória alocada em \"%s\", de tamanho %d bytes\n", nome_arquivo_saida.c_str(), tam_bloco * num_blocos);
 
     return 0;
@@ -162,25 +177,28 @@ int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_blo
 
 
 // Função para ler um bloco de um arquivo, dado o seu endereço
-char* ler_bloco_do_arquivo(double endereco_bloco, string nome_arquivo_saida, int tam_bloco, int num_blocos) {
-    ifstream arquivo(nome_arquivo_saida, ios::binary);
-    if (!arquivo.is_open()) {
-        cerr << "Erro ao abrir o arquivo: " << nome_arquivo_saida << endl;
-        return NULL;
+char* ler_bloco_do_arquivo(long endereco_bloco, string nome_arquivo_entrada, int tam_bloco) {
+    FILE *arquivo = fopen(nome_arquivo_entrada.c_str(), "r");
+    if (arquivo == NULL) {
+        printf("Erro ao abrir o arquivo: %s\n", nome_arquivo_entrada.c_str());
     }
-
     char *bloco = (char*) malloc(tam_bloco);
     
-    // Move o cursor para o endereço do bloco
-    arquivo.seekg(endereco_bloco);
-    arquivo.read(bloco, tam_bloco);
-    if (!arquivo) {
-        cerr << "Erro ao ler o arquivo: " << nome_arquivo_saida << endl;
+    // Posicionar no endereço do bloco no arquivo
+    if (fseek(arquivo, endereco_bloco, SEEK_SET) != 0) {
+        printf("Erro ao se posicionar no arquivo para leitura.\n");
+        fclose(arquivo);
         return NULL;
     }
 
-    arquivo.close();
-
+    int num_lidos = fread(bloco, tam_bloco, 1, arquivo);
+    if (num_lidos != 1) {
+        printf("Erro ao ler o arquivo.\n");
+        fclose(arquivo);
+        return NULL;
+    }
+    
+    fclose(arquivo);
     return bloco;
 }
 
@@ -227,12 +245,12 @@ Registro ler_registro_do_bloco_dados(char* bloco, int id, int tam_bloco, int tam
 }
 
 
-// TO-DO
-int escrever_bloco_no_arquivo(char* bloco, int endereco, string nome_arquivo_saida, int tam_bloco, int num_blocos) {
-    FILE* arquivo = fopen(nome_arquivo_saida.c_str(), "wb");
+// Escreve um bloco em um dado endereço em um arquivo
+int escrever_bloco_no_arquivo(char* bloco, long endereco, string nome_arquivo_saida, int tam_bloco) {
+    FILE* arquivo = fopen(nome_arquivo_saida.c_str(), "rb+");
     if (!arquivo) {
         printf("Erro ao abrir arquivo para escrita.\n");
-        return 0;
+        return 1;
     }
 
     // Posicionar no endereço do bloco no arquivo
@@ -244,12 +262,14 @@ int escrever_bloco_no_arquivo(char* bloco, int endereco, string nome_arquivo_sai
 
     // Escrever bloco no arquivo
     int num_escritos = fwrite(bloco, tam_bloco, 1, arquivo);
-    //printf("%d vs %ld / %d\n", num_escritos, sizeof(bloco), tam_bloco);
+
     if (num_escritos != 1) {
         printf("Erro ao escrever no arquivo.\n");
         fclose(arquivo);
         return 1;
     }
+
+    fclose(arquivo);
 
     return 0;
 }
@@ -261,45 +281,40 @@ int escrever_registro_no_bloco_dados(Registro* r, char* bloco, int tam_bloco) {
     int id_atual = -1;
     int reg = 0;
     char id_str[sizeof(int)];
-    //char* bloco = (char*) malloc(sizeof(char) * tam_bloco);
+    char achou_espaco = 0;
     
     // Achar um registro vazio no bloco
     for (reg = 0; reg < tam_bloco/sizeof(Registro); reg++) {
         memcpy(id_str, bloco + pos, sizeof(int));
-                
-        //id_atual = stoi(id_str);
 
-        if (id_str[0] == 0) {
+        // Se estiver vazio, ou se for equivalente a um registro que já existe
+        if ((id_str[0] == 0) || (converter_chars_para_int(id_str) == r->ID)) {
+            achou_espaco = 1;
             break;
         }
-
         pos += sizeof(Registro);
     }
 
     // Escreve se achou
-    if (id_str[0] == 0) {
+    if (achou_espaco) {
         char* reg = registro_to_char(r);
-        printf("Achou um bloco livre, vai escrever o registro \n");
+        //printf("Achou o espaço, vai escrever o registro \n");
         for (int i = 0; i < sizeof(Registro); i++) {
             bloco[pos + i] = reg[i];
         }
-        /*
-        for (int i = 0; i < sizeof(Registro); i++) {
-            printf("%d ", bloco[pos + i]);
-        }
-        */
+        free(reg);
         return 1;
     }
 
     // Não escreve se estiver cheio
+    printf("Não conseguiu espaço.\n");
     return 0;
 }
 
 
-void teste_leitura_dados(Registro* registro, int endereco, string nome_arquivo_saida, int num_blocos_hash, int tam_bloco) {
-    char* bloco = (char*) malloc(sizeof(char) * tam_bloco);
+void teste_leitura_dados(Registro* registro, long endereco, string nome_arquivo_saida, int num_blocos_hash, int tam_bloco) {
     // READ_ITEM()
-    bloco = ler_bloco_do_arquivo(endereco, nome_arquivo_saida, tam_bloco, num_blocos_hash);
+    char* bloco = ler_bloco_do_arquivo(endereco, nome_arquivo_saida, tam_bloco);
     Registro lido = ler_registro_do_bloco_dados(bloco, registro->ID, tam_bloco, sizeof(Registro));
     printf("%d\n", lido.ID);
 
@@ -365,8 +380,6 @@ int calcula_num_blocos(int tam_bloco, int tam_reg, int num_artigos) {
 }
 
 
-
-
 // ======================================================================================================
 // Funções de parsing do arquivo de entrada
 
@@ -376,11 +389,20 @@ string le_linha(FILE *arquivo) {
     // Cria uma string do tamanho máximo de um registro 
     char* linha = (char*) malloc(sizeof(Registro) + (7*3));
 
-    fscanf(arquivo, "%[^\r\n]%*[\r\n]", linha);
-    string line = linha;
+    int size = fscanf(arquivo, "%[^\r\n]%*[\r\n]", linha);
+    if (size > -1) {
+        string line(linha);
+        free(linha);
+        return line;
+    }
+    else {
+        string line("");
+        free(linha);
+        return line;
+    }
     
-    return line;
 }
+
 
 // Função que faz a separação de uma linha do arquivo em campos de um Registro
 Registro parse(string linha, FILE* arquivo) {
@@ -505,29 +527,83 @@ Registro parse(string linha, FILE* arquivo) {
 }
 
 
-// TO-DO
-int funcao_hash(Registro* registro, int num_blocos_hash, int tam_bloco) {
-    return 0;
+// Hash mais básica, um vetor
+int funcao_hash_temp(Registro* registro, int num_blocos_hash, int tam_bloco) {
+    return (registro->ID) * tam_bloco;
 } 
 
 
-// TO-DO
-void salva_no_arq_dados(Registro* registro, int endereco, string nome_arquivo_saida, int num_blocos_hash, int tam_bloco) {
-    
-    
-    char* bloco = (char*) malloc(sizeof(char) * tam_bloco);
+// TO-DO - hash perfeito
+int funcao_hash_perfeito(Registro* registro, int num_blocos_hash, int tam_bloco) {
+    return 1;
+} 
 
-    // WRITE_ITEM()
-    bloco = ler_bloco_do_arquivo(endereco, nome_arquivo_saida, tam_bloco, num_blocos_hash);
-    escrever_registro_no_bloco_dados(registro, bloco, tam_bloco);
-    escrever_bloco_no_arquivo(bloco, endereco, nome_arquivo_saida, tam_bloco, num_blocos_hash);
-    printf("Escrito\n");
+// Aplica uma função hashing no id do registro
+int funcao_hash(Registro* registro, int num_blocos_hash, int tam_bloco) {
+    return funcao_hash_temp(registro, num_blocos_hash, tam_bloco);
+} 
 
-    
-    
+
+// Vai reunir as informações necessárias para o cálculo dos endereços de hash da findrec
+void escreve_metadados_hash_arquivo(int tam_bloco, int num_blocos, int num_linhas, int tam_reg, string nome_arquivo_saida) {
+    int endereco_metadados = 0;
+    char* bloco = ler_bloco_do_arquivo(endereco_metadados, nome_arquivo_saida, tam_bloco);
+    int size_int = sizeof(int);
+
+    // Escreve cada int em uma posição consecutiva do bloco
+    char* str = converter_int_para_chars(tam_bloco);
+    escreve_int_str(str, bloco, 0);
+
+    str = converter_int_para_chars(num_blocos);
+    escreve_int_str(str, bloco, 1*size_int);
+
+    str = converter_int_para_chars(num_linhas);
+    escreve_int_str(str, bloco, 2*size_int);
+
+    str = converter_int_para_chars(tam_reg);
+    escreve_int_str(str, bloco, 3*size_int);
+
+    escrever_bloco_no_arquivo(bloco, endereco_metadados, nome_arquivo_saida, tam_bloco);
+
+    free(bloco);
+    free(str);
+
     return;
 }
 
+
+int cria_arq_dados(int num_blocos, int tam_bloco, string nome_arquivo_saida){
+    aloca_memoria_arquivo(nome_arquivo_saida, num_blocos, tam_bloco);
+    return 0;
+}
+
+
+// Recebe um registro para salvar em um endereço do arquivo
+void salva_no_arq_dados(Registro* registro, int endereco, string nome_arquivo_saida, int num_blocos_hash, int tam_bloco) {
+    // WRITE_ITEM()
+    char* bloco = ler_bloco_do_arquivo(endereco, nome_arquivo_saida, tam_bloco);
+    if (!escrever_registro_no_bloco_dados(registro, bloco, tam_bloco)) {
+        printf("Não escreveu registro no bloco.\n");
+        return;
+    }
+    if (escrever_bloco_no_arquivo(bloco, endereco, nome_arquivo_saida, tam_bloco)) {
+        printf("Não escreveu bloco no arquivo.\n");
+        return;
+    }
+    //printf("Escrito\n");
+    
+    free(bloco);
+    return;
+}
+
+int aplica_hashing(Registro* registro, int tam_bloco, int num_blocos, string nome_arquivo_saida) {
+    int endereco = funcao_hash(registro, num_blocos, tam_bloco);
+    //printf("\nEndereço hash para id (%d): %d\n", registro->ID, endereco);
+
+    // Salva o registro no arquivo de dados
+    salva_no_arq_dados(registro, endereco, nome_arquivo_saida, num_blocos, tam_bloco);
+    return 0;
+}
 
 // TO-DO
 void salva_no_arq_idx_prim(Registro* registro, int endereco) {
@@ -553,11 +629,12 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
 
     string linha;
     int int_length = 2.5 * sizeof(int);
-    printf("il: %d\n", int_length);
     
     int num_campos = 0;
     int endereco = 0;
-    Registro r, s;
+    Registro r, r0, r1;
+
+    int num_blocos_hash_temp = 0;
     
     ///*
     printf("Descobrindo tamanho do bloco de dados...\n");
@@ -572,67 +649,85 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
 
     printf("Descobrindo o número de blocos para armazenar o arquivo de dados...\n");
     int num_blocos_hash = calcula_num_blocos(tam_bloco, tam_reg_hash, num_linhas);
+    // TO-DO - hashing perfeito
+    num_blocos_hash_temp = num_linhas * 1.55;
 
-    printf("tamanho do bloco: %d\n", tam_bloco);
-    printf("tamanho do registro (hash): %d\n", tam_reg_hash);
-    printf("número de linhas: %d\n", num_linhas);
-    printf("numero de blocos (hash): %d\n\n", num_blocos_hash);
-
-    printf("Alocando %d bytes de memória para o arquivo...\n", num_blocos_hash * tam_bloco);
-    aloca_memoria_arquivo(nome_arquivo_saida, num_blocos_hash, tam_bloco);
-
-    // TO-DO: escrever um registro
+    printf("\ttamanho do bloco: %d\n", tam_bloco);
+    printf("\ttamanho do registro (hash): %d\n", tam_reg_hash);
+    printf("\tnúmero de linhas: %d\n", num_linhas);
+    printf("\tnumero de blocos (hash): %d, %d bytes\n", num_blocos_hash, num_blocos_hash * tam_bloco);
     
-    
+    printf("Inicializando metadados...\n");
+    int metadados[4];
+    metadados[0] = tam_bloco;
+    metadados[1] = num_blocos_hash_temp;
+    metadados[2] = num_linhas;
+    metadados[3] = tam_reg_hash;
 
-    // TO-DO: ler um registro
+    printf("\nAlocando %d bytes de memória para o arquivo...\n", metadados[1] * metadados[3]);
+    cria_arq_dados(metadados[1], metadados[0], nome_arquivo_saida);
+
+    printf("\nEscrevendo metadados do hashing...\n");    
+    escreve_metadados_hash_arquivo(metadados[0], metadados[1], metadados[2], metadados[3], nome_arquivo_saida);
+    
+    printf("Metadados escritos:\n");
+    char* bloco_meta = ler_bloco_do_arquivo(0, nome_arquivo_saida, metadados[0]);
+    
+    char int_str[4];
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            int_str[j] = bloco_meta[(i*sizeof(int)) + j];
+        }
+        printf("%d ", converter_chars_para_int(int_str));
+    }
+    printf("\n");
+    free(bloco_meta);
+
+    
     //*/
 
-    printf("Parsing do arquivo de entrada:\n");
+    printf("\nParsing do arquivo de entrada:\n");
     linha = le_linha(arquivo);
     while (linha.size() > 0) {
         cont++;
-        s = r;
+
         // Lê um registro do arquivo
         r = parse(linha, arquivo);
-        printf("id: %d\t", r.ID);
-
+        
+        // TO-DO - if temporário, por causa do artinho.csv
+        if (r.ID <= metadados[1]) {
+            aplica_hashing(&r, metadados[0], metadados[1], nome_arquivo_saida);
+        }
+        printf("%do id salvo: %d\n", cont, r.ID);
+        
         /*
-
-        // Gera o endereço do registro
-        endereco = funcao_hash(&r, num_blocos_hash, tam_bloco);
-
-        // Salva o registro no arquivo de dados
-        salva_no_arq_dados(&r, endereco, nome_arquivo_saida, num_blocos_hash, tam_bloco);
-
         // Salva o endereço no arquivo de índice primário
         salva_no_arq_idx_prim(&r, endereco);
 
         // Salva o endereço no arquivo de índice secundário
         salva_no_arq_idx_sec(&r, endereco);
         */
-
+       
         linha = le_linha(arquivo);
     }
-    printf("\nNúmero de artigos: %d\n\n", cont);
+    printf("\nNúmero de artigos: %d\n", cont);
 
     // Teste:
     ///*
-    endereco = funcao_hash(&r, num_blocos_hash, tam_bloco);
+    Registro obaa;
+    obaa.ID = 2584;
 
-    // Salva o registro no arquivo de dados
-    // escrevendo penúltimo registro
-    salva_no_arq_dados(&s, endereco, nome_arquivo_saida, num_blocos_hash, tam_bloco);
-    // escrevendo último registro
-    salva_no_arq_dados(&r, endereco, nome_arquivo_saida, num_blocos_hash, tam_bloco);
+    endereco = funcao_hash(&obaa, num_blocos_hash, tam_bloco);
+    printf("\nBuscando id: %d. Endereço hash: %d\n", obaa.ID, endereco);
 
-    char* bloco_teste = ler_bloco_do_arquivo(tam_bloco * 0, nome_arquivo_saida, tam_bloco, num_blocos_hash);
+    char* bloco_teste = ler_bloco_do_arquivo(endereco, nome_arquivo_saida, tam_bloco);
 
-    printf("\nBloco de endereço 0 * %d lido (tamanho: %d bytes):\n", tam_bloco, tam_bloco);
+    printf("\nBloco de endereço %d lido (tamanho: %d bytes):\n", endereco, tam_bloco);
     for (int i = 0; i < tam_bloco; i++) {
         printf("%c", bloco_teste[i]);
     }
     printf("\n\n");
+    free(bloco_teste);
     //*/
 
     fclose(arquivo);
