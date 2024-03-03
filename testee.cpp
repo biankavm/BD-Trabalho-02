@@ -164,7 +164,7 @@ int aloca_memoria_arquivo(string nome_arquivo_saida, int num_blocos, int tam_blo
     }
 
     for (int j = 0; j < iteracoes; j++){
-        printf("\tIteração %d/%d\n", j, iteracoes);
+        //printf("\tIteração %d/%d\n", j, iteracoes);
         fwrite(bloco, 1, bytes, pFile);
     }
 
@@ -596,14 +596,14 @@ void salva_no_arq_dados(Registro* registro, long endereco, string nome_arquivo_s
     return;
 }
 
-int aplica_hashing(Registro* registro, int tam_bloco, int num_blocos, string nome_arquivo_saida) {
+long aplica_hashing(Registro* registro, int tam_bloco, int num_blocos, string nome_arquivo_saida) {
     long endereco = funcao_hash(registro, num_blocos, tam_bloco);
     
     //printf("\nEndereço hash para id (%d): %d\n", registro->ID, endereco);
 
     // Salva o registro no arquivo de dados
     salva_no_arq_dados(registro, endereco, nome_arquivo_saida, num_blocos, tam_bloco);
-    return 0;
+    return endereco;
 }
 
 // TO-DO
@@ -619,7 +619,7 @@ void salva_no_arq_idx_sec(Registro* registro, int endereco) {
 
 
 // leitura do arquivo csv
-void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
+void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_dados, string nome_arquivo_idx_prim, string nome_arquivo_idx_sec){
     
     int cont = 0;
     FILE *arquivo = fopen(nome_arquivo_entrada.c_str(), "r");
@@ -665,14 +665,14 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     metadados[2] = num_linhas;
     metadados[3] = tam_reg_hash;
 
-    printf("\nAlocando %ld bytes de memória para o arquivo...\n", (long) metadados[1] * metadados[3]);
-    cria_arq_dados(metadados[1], metadados[0], nome_arquivo_saida);
+    printf("\nAlocando %ld bytes de memória para o arquivo (Isso deve demorar alguns minutos)...\n", (long) metadados[1] * metadados[3]);
+    cria_arq_dados(metadados[1], metadados[0], nome_arquivo_dados);
 
     printf("\nEscrevendo metadados do hashing...\n");    
-    escreve_metadados_hash_arquivo(metadados[0], metadados[1], metadados[2], metadados[3], nome_arquivo_saida);
+    escreve_metadados_hash_arquivo(metadados[0], metadados[1], metadados[2], metadados[3], nome_arquivo_dados);
     
-    printf("Metadados escritos:\n");
-    char* bloco_meta = ler_bloco_do_arquivo(0, nome_arquivo_saida, metadados[0]);
+    printf("\tMetadados escritos:\n\t");
+    char* bloco_meta = ler_bloco_do_arquivo(0, nome_arquivo_dados, metadados[0]);
     
     char int_str[4];
     for (int i = 0; i < 4; i++) {
@@ -684,10 +684,11 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     printf("\n");
     free(bloco_meta);
 
+    // TO-DO - Criar arquivo idx prim e sec
     
     //*/
 
-    printf("\nParsing do arquivo de entrada:\n");
+    printf("\nSalvando dados (Isso deve demorar alguns minutos)...\n");
     linha = le_linha(arquivo);
     while (linha.size() > 0) {
         cont++;
@@ -697,9 +698,10 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
         
         // TO-DO - if temporário, por causa do artinho.csv
         if (r.ID <= metadados[1]) {
-            aplica_hashing(&r, metadados[0], metadados[1], nome_arquivo_saida);
+            endereco = aplica_hashing(&r, metadados[0], metadados[1], nome_arquivo_dados);
+
         }
-        printf("%do id salvo: %d\n", cont, r.ID);
+        //printf("%do id salvo: %d\n", cont, r.ID);
         
         /*
         // Salva o endereço no arquivo de índice primário
@@ -711,10 +713,11 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
        
         linha = le_linha(arquivo);
     }
-    printf("\nNúmero de artigos: %d\n", cont);
+    printf("Inserção concluída.\n", cont);
+    printf("Número de artigos: %d\n", cont);
 
     // Teste:
-    ///*
+    /*
     Registro obaa;
     obaa.ID = 14;
 
@@ -729,16 +732,18 @@ void le_arquivo_csv(string nome_arquivo_entrada, string nome_arquivo_saida){
     }
     printf("\n\n");
     free(bloco_teste);
-    //*/
+    */
 
     fclose(arquivo);
 }
 
 int main() {
     string nome_arquivo_entrada = "artino.csv";
-    string nome_arquivo_saida = "saida.bin";
+    string nome_arquivo_dados = "arquivo_dados.bin";
+    string nome_arquivo_idx_prim = "arquivo_indice_primario.bin";
+    string nome_arquivo_idx_sec = "arquivo_indice_secundario.bin";
 
-    le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_saida);
+    le_arquivo_csv(nome_arquivo_entrada, nome_arquivo_dados, nome_arquivo_idx_prim, nome_arquivo_idx_sec);
 
     return 0;
 }
