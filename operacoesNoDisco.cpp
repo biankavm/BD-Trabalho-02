@@ -75,8 +75,8 @@ NoRAM *criaNoRAM(int maximo)
     {
         // Create memory of node key
         no->dados = dados;
-        no->dados->chaves = (int *) malloc((sizeof(int)) *(maximo));
-        no->dados->enderecos = (long*) malloc((sizeof(long))*(maximo));
+        no->dados->chaves = (int *) malloc((sizeof(int)) *(maximo+1));
+        no->dados->enderecos = (long*) malloc((sizeof(long))*(maximo+1));
 
         // Allocate memory of node child
         no->filhos = (NoRAM **) malloc((maximo + 1) *sizeof(NoRAM *));
@@ -370,6 +370,103 @@ int liberar_NoDisco_da_RAM(NoRAM *no){
     no->dados = NULL;
     return 1;
 }
+
+
+
+// ======================================================================
+// Funções da árvore
+
+// Faz a busca pela chave, caminhando pelo galho da árvore, 
+// e retorna o endereço do nó no disco.
+long* busca_endereco_NoRAM(ArvoreBP* abp, int chave, string testArq, int tamBloco) {
+    NoRAM *galho = abp->raiz;
+    int i = 0;
+    int j = 0;
+    NoRAM *pai = NULL;
+
+    // Executes the loop until when cursor node is not leaf node
+    while (galho->esFolha == 0)
+    {
+        // Get the current node
+        pai = galho;
+
+        for (i = 0; i < galho->numChaves; i++)
+        {
+            if(!galho->dados)
+            {
+                ler_NoDisco_do_disco(galho,testArq,tamBloco,abp);
+            }
+            if (chave < galho->dados->chaves[i])
+            {
+                liberar_NoDisco_da_RAM(galho);
+                galho = galho->filhos[i];
+                break;
+            }
+            if (i == galho->numChaves - 1)
+            {
+                liberar_NoDisco_da_RAM(galho);
+                galho = galho->filhos[i + 1];
+                break;
+            }
+        }
+    }
+
+    long* enderecos = (long*) malloc(sizeof(long) * 2);
+    enderecos[0] = galho->meuEndereco;
+    enderecos[1] = pai ->meuEndereco;
+    return enderecos;
+}
+
+
+
+// Seleciona apenas o endereço do pai ou do filho do conjunto de 
+// endereços retornados pela função de busca
+long busca_endereco_pai_filho(ArvoreBP* abp, int chave_filho, int retorna_pai) {
+    long endereco = 0;
+    long* enderecos = (long*) malloc(sizeof(long) * 2);
+    enderecos = busca_endereco_NoRAM(abp, chave_filho);
+
+    if (retorna_pai) {
+        endereco = enderecos[1];
+    }
+    else {
+        endereco = enderecos[0];
+    }
+
+    free(enderecos);
+
+    return endereco;
+}
+
+// Retorna um NoRAM contendo as informações do pai do nó buscado. 
+// Usa busca por chave, e usa a ler_NoDisco_do_disco()
+NoRAM* achar_NoRAM_pai(ArvoreBP* abp, int chave_filho) {
+    if (!abp->raiz) {
+        return NULL;
+    }
+
+    // Recebe um vetor de endereços
+    long endereco = 0;
+    endereco = busca_endereco_pai_filho(abp, chave_filho, 1);
+
+    // Se o endereço existir
+    if (!endereco) {
+        return NULL;
+    }
+
+    // Inicializa o nó para poder procurá-lo no disco
+    NoRAM* pai = criaNoRAM(abp->maximo);
+    pai->meuEndereco = endereco;
+
+    ler_NoDisco_do_disco(endereco, pai);
+    if (!pai->meuEndereco) {
+        return NULL;
+    }
+    
+    return pai;
+}
+
+
 
 int main(){
 
